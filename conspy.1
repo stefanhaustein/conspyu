@@ -1,0 +1,71 @@
+.\" Copyright (c) 2016 Russell Stuart
+.TH CONSPY 1 "Feb 2016" "Version 1.14" "conspy"
+.SH NAME
+conspy \- virtual console spy tool
+.SH SYNOPSIS
+.B conspy
+[ options ] [
+.I console
+]
+.SH DESCRIPTION
+.I Conspy
+allows the user to take control of a Linux virtual console.
+The user can see what is displayed on the console and their
+keystrokes are sent to it.
+.PP
+To exit from
+.I conspy
+press the escape key three times in quick succession.
+.PP
+.SH COMMAND LINE
+.IP "\fB\-g \fICOLSxROWS\fP, \fB\-\-geometry \fICOLSxROWS\fP"
+Specify the console size.
+.I Conspy
+can almost always correctly guess the size
+so this is only useful when it complains it can't.
+.IP "\fB\-V\fP, \fB\-\-version\fP"
+Print the program's version and exit.
+.IP "\fB\-v\fP, \fB\-\-viewonly\fP"
+Don't send keystrokes to the virtual console.
+.IP "\fIconsole\fP"
+If supplied,
+.I console
+must be a number in the range 1 .. 63, corresponding to the
+virtual console device /dev/tty1 .. /dev/tty63.
+If not supplied the currently active virtual console is opened
+and tracked.
+.SH LIMITATIONS
+.I Conspy
+will not pass keystrokes to a virtual console whose keyboard
+is configured to send scan codes.  X configures its keyboard
+like this.
+If the terminal does not have at least 64 colours no colour
+will be displayed.
+.I Conspy
+ignores the mouse.
+.I Conspy
+may display some non\-ASCII characters incorrectly.
+.PP
+The kernel reports the console geometry and cursor position
+using bytes which limits both to 255 maximum.
+.I Conspy
+can usually guess the correct display size from the truncated version,
+but if the cursor position is beyond line 255 or column 255
+.I conspy
+will put it in the wrong place.
+.PP
+.I Conspy
+depends on terminfo and curses working correctly for your
+terminal, and sometimes they don't.  Konsole is/was one
+example of where they don't.  Typing control\-L will redraw
+the screen, which usually fixes the mess created.  It also
+sends a control\-L to the virtual console, of course.
+.SH FILES
+.IP "\fB/dev/ttyX\fP, \fB/dev/vc/X\fP"
+The characters typed are sent to this device.
+The latter is for devfs. It is only used if the former does not exist.
+.IP "\fB/dev/vcsaX\fP, \fB/dev/vcc/aX\fP"
+The display of the virtual console is read from here.
+The latter is for devfs. It is only used if the former does not exist.
+.SH AUTHOR
+Russell Stuart, <russell\-conspy@stuart.id.au>.

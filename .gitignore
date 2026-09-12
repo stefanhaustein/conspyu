@@ -1,0 +1,23 @@
+syntax: glob
+
+*.[12345678].html
+*.o
+*.orig
+.deps
+Makefile-automake
+Makefile-automake.in
+aclocal.m4
+autom4te.cache
+compile
+config.log
+config.status
+configure
+conspy
+debian/*.debhelper.log
+debian/*.substvars
+debian/conspy
+debian/files
+depcomp
+install-sh
+missing
+release.tmp
