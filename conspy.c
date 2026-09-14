@@ -113,65 +113,6 @@ static char conspy_version[]	= "1.14";
 #define	IBM_VLINE	0xc5
 
 /*
- * This is the original IBM PC charcter set.  I thought this is what the
- * Linux console would use, but apparently not.
- */
-#if	0
-#define	IBM_BLOCK	0xdb
-#define	IBM_BTEE	0xc1
-#define	IBM_BULLET	0xf9
-#define	IBM_DARROW	0x19
-#define	IBM_D_BTEE	0xca
-#define	IBM_DEGREE	0xf8
-#define	IBM_D_HLINE	0xcd
-#define	IBM_DIAMOND	0x04
-#define	IBM_D_LLCORNER	0xc8
-#define	IBM_D_LRCORNER	0xbc
-#define	IBM_D_LTEE	0xcc
-#define	IBM_D_RTEE	0xb9
-#define	IBM_DS_BTEE	0xcf
-#define	IBM_DS_LLCORNER	0xd3
-#define	IBM_DS_LRCORNER	0xbd
-#define	IBM_DS_LTEE	0xc7
-#define	IBM_DS_RTEE	0xb6
-#define	IBM_DS_TTEE	0xd1
-#define	IBM_DS_ULCORNER	0xd6
-#define	IBM_DS_URCORNER	0xb7
-#define	IBM_DS_XCROSS	0xd7
-#define	IBM_D_TTEE	0xcb
-#define	IBM_D_ULCORNER	0xc9
-#define	IBM_D_URCORNER	0xbb
-#define	IBM_D_VLINE	0xba
-#define	IBM_D_XCROSS	0xce
-#define	IBM_GEQUAL	0xf2
-#define	IBM_HLINE	0xc4
-#define	IBM_LANTERN	0x0f
-#define	IBM_LARROW	0x1b
-#define	IBM_LLCORNER	0xc0
-#define	IBM_LRCORNER	0xd9
-#define	IBM_LTEE	0xc3
-#define	IBM_PLMINUS	0xf1
-#define	IBM_RARROW	0x1a
-#define	IBM_RTEE	0xb4
-#define	IBM_SD_BTEE	0xd0
-#define	IBM_SD_LLCORNER	0xd4
-#define	IBM_SD_LRCORNER	0xbe
-#define	IBM_SD_LTEE	0xc6
-#define	IBM_SD_RTEE	0xb5
-#define	IBM_SD_TTEE	0xd2
-#define	IBM_SD_ULCORNER	0xd5
-#define	IBM_SD_URCORNER	0xb8
-#define	IBM_SD_XCROSS	0xd8
-#define	IBM_STERLING	0x9c
-#define	IBM_TTEE	0xc2
-#define	IBM_UARROW	0x18
-#define	IBM_ULCORNER	0xda
-#define	IBM_URCORNER	0xbf
-#define	IBM_VLINE	0xb3
-#define	IBM_XCROSS	0xc5
-#endif
-
-/*
  * This function maps a VGA colour pair to a curses COLOR_PAIR()
  * number.  In the curses scheme colour pair 0 must be white text
  * on a black background, so the origin is moved to there.
@@ -229,16 +170,9 @@ static unsigned short cursesbox[256];
  * A character as it appears in the VGA video buffer.
  */
 struct vidchar {
-#if 0
-  unsigned char		vidchar_char;		/* The IBM-ASCII Char code */
-  unsigned char		vidchar_attribute;	/* Colour/blink/bold spec */
-#define	VIDCHAR_CHAR(vidchar)		((vidchar)->vidchar_char)
-#define	VIDCHAR_ATTRIBUTE(vidchar)	((vidchar)->vidchar_attribute)
-#else
   unsigned short	vidchar_charattr;	/* Attr in msb, char in lsb */
 #define	VIDCHAR_CHAR(vidchar)		((vidchar)->vidchar_charattr & 0xFF)
 #define	VIDCHAR_ATTRIBUTE(vidchar)	((vidchar)->vidchar_charattr >> 8)
-#endif
 };
 
 
@@ -259,8 +193,6 @@ struct vidbuf {
 #define UNIBUF_SIZE(cols, lines) (cols * lines * sizeof(uint32_t))
 
 
-
-
 /*
  * Options we allow.
  */
@@ -279,7 +211,7 @@ int main(int argc, char** argv)
 {
   setlocale(LC_ALL, "");
 
-  int			use_colour;
+  int use_colour;
 
   me = strrchr(argv[0], '/');
   me = me == 0 ? argv[0] : me + 1;
@@ -545,15 +477,18 @@ static int setup()
   (void)initscr();
   (void)nonl();
   /*
-   * Set up the tty.  All characters must be passed through to
-   * us unaltered.
+   * Set up the tty if input is enabled. All characters must be passed through to
+   * us unaltered in this case.
    */
   termios = old_termios;
-  termios.c_iflag &= ~(BRKINT|INLCR|ICRNL|IXON|IXOFF|IUCLC|IXANY|IMAXBEL);
-  termios.c_oflag &= ~(OPOST);
-  termios.c_lflag &= ~(ISIG|ICANON|ECHO);
-  if (tcsetattr(0, TCSANOW, &termios) == -1)
-    syserror("tcsetattr(0)");
+  if (!opt_viewonly) 
+  {
+    termios.c_iflag &= ~(BRKINT|INLCR|ICRNL|IXON|IXOFF|IUCLC|IXANY|IMAXBEL);
+    termios.c_oflag &= ~(OPOST);
+    termios.c_lflag &= ~(ISIG|ICANON|ECHO);
+    if (tcsetattr(0, TCSANOW, &termios) == -1)
+      syserror("tcsetattr(0)");
+  }
   /*
    * Set up the colour map, if we can.
    */
@@ -624,11 +559,18 @@ static void conspy(int use_colour)
   unsigned int		video_attribute;
   int			video_char;
   struct vidbuf*	vidbuf;
+  struct vidbuf*        prevbuf;
+  struct vidbuf*        tmpbuf;
   size_t		vidbuf_size;
   struct vidchar*	vidchar;
+  struct vidchar*       prevchar;
   uint32_t*             unibuf;
   size_t                unibuf_size;
   uint32_t*             unichar;
+  size_t                offset;
+  int                   changes;
+  int 			sleep;
+  int                   is_different;
 
   curses_colour = 0;
   curses_attribute = 0;
@@ -644,12 +586,16 @@ static void conspy(int use_colour)
 
   vidbuf_size = VIDBUF_SIZE(curr_columns, curr_lines) + sizeof(vidchar);
   vidbuf = checked_malloc(vidbuf_size);
+  prevbuf = checked_malloc(vidbuf_size);
 
   unibuf_size = UNIBUF_SIZE(curr_columns, curr_lines) + sizeof(uint32_t);
   unibuf = checked_malloc(unibuf_size);
 
+  sleep = 40;
+
   for (;;)
   {
+    changes = 0;
     /*
      * Read the video buffer.
      */
@@ -664,7 +610,10 @@ static void conspy(int use_colour)
 	  break;
 	vidbuf_size *= 2;
 	free(vidbuf);
+	free(prevbuf);
 	vidbuf = checked_malloc(vidbuf_size);
+        prevbuf = checked_malloc(vidbuf_size);
+        changes += 1000;
     }
     if (bytes_read == VIDBUF_SIZE(opt_columns, opt_lines))
     {
@@ -729,7 +678,10 @@ static void conspy(int use_colour)
      * Write the data to the screen.
      */
     vidchar = vidbuf->vidbuf_chars;
+    prevchar = prevbuf->vidbuf_chars;
     unichar = unibuf;
+    offset = 0;
+    changes = 0;
 
     for (line = 0; line < curr_lines && line < (unsigned)LINES; line += 1)
     {
@@ -738,71 +690,94 @@ static void conspy(int use_colour)
       {
 	if (column >= (unsigned)COLS)
 	{
-	  vidchar += curr_columns - column;
-          unichar += curr_columns - column;
+	  offset += curr_columns - column;
 	  break;
 	}
-	video_attribute = VIDCHAR_ATTRIBUTE(vidchar);
-        if (uni_handle != -1)
-        {
-	  video_char = *unichar;
-          box = 0;
-        }
-        else
-        {
-          video_char = VIDCHAR_CHAR(vidchar);
-          box = cursesbox[video_char];
-        }
-	if (box != 0)
-	{
-	  video_attribute |= 0x100;
-	  video_char = box;
-	}
-	if (video_char < ' ')
-	  video_char = ' ';
-	if (video_attribute != last_attribute)
-	{
-	  if (line_chars > 0)
+	// ignore lines until there is a difference....
+        is_different = memcmp(&vidchar[offset], &prevchar[offset], sizeof(struct vidchar));
+        if (line_chars > 0 || is_different) {
+  	  video_attribute = VIDCHAR_ATTRIBUTE(&vidchar[offset]);
+          if (uni_handle != -1)
+          {
+	    video_char = unichar[offset];
+            box = 0;
+          }
+          else
+          {
+            video_char = VIDCHAR_CHAR(&vidchar[offset]);
+            box = cursesbox[video_char];
+          }
+	  if (box != 0)
 	  {
-	    move(line, column - line_chars);
-            wattr_set(stdscr, curses_attribute, curses_colour, NULL);
-            waddnwstr(stdscr, line_buf, line_chars);
-//	    add_wchnstr(line_buf, line_chars);
-//	    wchgat(stdscr, line_chars, curses_attribute, curses_colour, 0);
-	    line_chars = 0;
+	    video_attribute |= 0x100;
+	    video_char = box;
 	  }
-	  curses_attribute = A_NORMAL;
-	  if (video_attribute & 0x100)
-	    curses_attribute |= A_ALTCHARSET;
-	  if (video_attribute & 0x80)
-	    curses_attribute |= A_BLINK;
-	  if (video_attribute & 0x08)
-	    curses_attribute |= A_BOLD;
-	  if (use_colour)
+	  if (video_char < ' ')
+	    video_char = ' ';
+	  if (video_attribute != last_attribute || !is_different)
 	  {
-	    curses_colour =
+	    if (line_chars > 0)
+	    {
+	      move(line, column - line_chars);
+              wattr_set(stdscr, curses_attribute, curses_colour, NULL);
+              waddnwstr(stdscr, line_buf, line_chars);
+	      changes += line_chars;
+	      line_chars = 0;
+	    }
+	    curses_attribute = A_NORMAL;
+	    if (video_attribute & 0x100)
+	      curses_attribute |= A_ALTCHARSET;
+	    if (video_attribute & 0x80)
+	      curses_attribute |= A_BLINK;
+	    if (video_attribute & 0x08)
+	      curses_attribute |= A_BOLD;
+	    if (use_colour)
+	    {
+	      curses_colour =
 		VGA_PAIR(video_attribute & 0x7, video_attribute>>4 & 0x7);
+	    }
+	    last_attribute = video_attribute;
 	  }
-	  last_attribute = video_attribute;
-	}
-	line_buf[line_chars++] = video_char;
-	vidchar += 1;
-        unichar += 1;
+          if (is_different) {
+            line_buf[line_chars++] = video_char;
+          }
+        }
+        offset += 1;
       }
-      move(line, column - line_chars);
-      addchnstr(line_buf, line_chars);
-      wchgat(stdscr, line_chars, curses_attribute, curses_colour, 0);
+      if (line_chars > 0) {
+        move(line, column - line_chars);
+        wattr_set(stdscr, curses_attribute, curses_colour, NULL);
+        waddnwstr(stdscr, line_buf, line_chars);
+        changes += line_chars;
+        // addchnstr(line_buf, line_chars);
+        // wchgat(stdscr, line_chars, curses_attribute, curses_colour, 0);
+      }
     }
-    if (vidbuf->vidbuf_curline < LINES && vidbuf->vidbuf_curcolumn < COLS)
-      move(vidbuf->vidbuf_curline, vidbuf->vidbuf_curcolumn);
-    refresh();
+
+    if (changes || vidbuf->vidbuf_curline != prevbuf->vidbuf_curline || vidbuf->vidbuf_curcolumn != prevbuf->vidbuf_curcolumn) {
+      if (vidbuf->vidbuf_curline < LINES && vidbuf->vidbuf_curcolumn < COLS)
+        move(vidbuf->vidbuf_curline, vidbuf->vidbuf_curcolumn);
+
+      refresh();
+
+      sleep = changes > 100 ? 100 : 10;
+    } else {
+      if (sleep < 200) {
+        sleep++;
+      }
+    }
+
+    tmpbuf = vidbuf;
+    vidbuf = prevbuf;
+    prevbuf = tmpbuf;
+
     /*
      * Wait for 1/4 or a second, or for a character to be pressed.
      */
     FD_ZERO(&readset);
     FD_SET(0, &readset);
     timeval.tv_sec = 0;
-    timeval.tv_usec = 250 * 1000L;
+    timeval.tv_usec = sleep * 1000L;
     result = select(0 + 1, &readset, 0, 0, &timeval);
     if (result == -1)
     {
