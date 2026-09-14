@@ -1,3 +1,15 @@
+"ConspyU" Conspy Fork
+=====================
+
+- Adds support for unicode characters (implicitly if vcsu* is found)
+  - Translation to terminal capabilities is left to curses
+- Sends attributes to curses together with the text
+  - Avoids visible attribute "delay" when scrolling 
+- Only sends changed sections to curses
+- Dynamically adjusts update frequency
+
+Stefan Haustein, September 14, 2026
+
 Conspy
 ======
 
