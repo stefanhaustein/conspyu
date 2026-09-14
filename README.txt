@@ -8,7 +8,8 @@
 - Only sends changed sections to curses
 - Dynamically adjusts update frequency
 
-Stefan Haustein, September 14, 2026
+Stefan Haustein
+September 14, 2026
 
 Conspy
 ======
